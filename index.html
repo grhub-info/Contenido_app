@@ -22,6 +22,7 @@
   <br>
   <button id="processBtn" disabled>Validar y Generar JSON</button>
   <div id="errors"></div>
+
   <h2>JSON Resultante</h2>
   <div id="jsonOutput"></div>
   <a id="downloadLink" class="download-link" style="display:none;" download="tours.json">Descargar JSON</a>
@@ -52,43 +53,47 @@
       errorsDiv.textContent = '';
       jsonOut.textContent = '';
       downloadLink.style.display = 'none';
-      
-      const blocks = [
-        {start:20, end:32, expected:12, label:'Campos 21–32'},
-        {start:35, end:47, expected:12, label:'Campos 36–47'},
-        {start:48, end:51, expected:3,  label:'Campos 49–51'}
-      ];
-      const errs = [];
-      // Validar Nombre de la excursión
+
+      // Buscar fila de Nombre de la excursión
       const excRow = rawData.findIndex(r => r[0] === 'Nombre de la excursión');
-      if (excRow < 0) errs.push('❌ No se encontró la etiqueta "Nombre de la excursión".');
-      // Validar bloques
-      blocks.forEach(b => {
-        const labels = rawData.slice(b.start, b.end).map(r=>r[0]).filter(c=>c && c.trim() !== '');
-        if (labels.length !== b.expected) {
-          errs.push(`❌ Bloque ${b.label}: esperado ${b.expected}, encontrado ${labels.length}`);
+      // Definir bloques de etiquetas
+      const sectionBlocks = [
+        {start:20, end:32, label:'Campos 21–32'},
+        {start:35, end:47, label:'Campos 36–47'},
+        {start:48, end:51, label:'Campos 49–51'}
+      ];
+      const errors = [];
+
+      if (excRow < 0) {
+        errors.push('❌ No se encontró la etiqueta "Nombre de la excursión".');
+      }
+
+      // Extraer etiquetas dinámicamente por bloque
+      const fields1 = rawData.slice(20, 32).map(r => r[0]).filter(c => c && c.trim());
+      const fields2 = rawData.slice(35, 47).map(r => r[0]).filter(c => c && c.trim());
+      const fields3 = rawData.slice(48, 51).map(r => r[0]).filter(c => c && c.trim());
+
+      // Validar existencia de etiquetas en cada bloque
+      [fields1, fields2, fields3].forEach((fields, idx) => {
+        if (fields.length === 0) {
+          errors.push(`❌ Bloque ${sectionBlocks[idx].label}: no se encontró ninguna etiqueta.`);
         }
       });
 
-      if (errs.length) {
-        errorsDiv.textContent = errs.join('\n');
+      if (errors.length) {
+        errorsDiv.textContent = errors.join('\n');
         return;
       }
 
       // Extraer tours
-      const tours = rawData[excRow].slice(1).filter(c=>c && c.trim() !== '');
-      // Campos
-      const fields1 = rawData.slice(20,32).map(r=>r[0]);
-      const fields2 = rawData.slice(35,47).map(r=>r[0]);
-      const fields3 = rawData.slice(48,51).map(r=>r[0]);
-
-      // Construir registros
+      const tours = rawData[excRow].slice(1).filter(c => c && c.trim());
+      // Construir registros por tour
       const records = tours.map((tour, idx) => {
         const col = idx + 1;
         const rec = {Tour: tour};
-        fields1.forEach((f,i) => rec[f] = rawData[20 + i][col]);
-        fields2.forEach((f,i) => rec[f] = rawData[35 + i][col]);
-        fields3.forEach((f,i) => rec[f] = rawData[48 + i][col]);
+        fields1.forEach((f, i) => rec[f] = rawData[20 + i][col]);
+        fields2.forEach((f, i) => rec[f] = rawData[35 + i][col]);
+        fields3.forEach((f, i) => rec[f] = rawData[48 + i][col]);
         return rec;
       });
 
@@ -96,7 +101,7 @@
       const jsonStr = JSON.stringify(records, null, 2);
       jsonOut.textContent = jsonStr;
 
-      // Preparar descarga
+      // Preparar descarga del JSON
       const blob = new Blob([jsonStr], {type: 'application/json'});
       const url = URL.createObjectURL(blob);
       downloadLink.href = url;
