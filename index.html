@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Validador y JSON de Tours</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 800px; }
+    input, button { margin: .5rem 0; padding: .5rem; font-size: 1rem; }
+    #errors { color: red; white-space: pre-wrap; margin-bottom: 1rem; }
+    #jsonOutput { white-space: pre-wrap; background: #f4f4f4; padding: 1rem; border: 1px solid #ddd; max-height: 300px; overflow: auto; }
+    a.download-link { display: inline-block; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Validador y Conversor a JSON de Tours</h1>
+
+  <label>Selecciona tu CSV (Formato de Contenido):
+    <input type="file" id="fileInput" accept=".csv">
+  </label>
+  <br>
+  <button id="processBtn" disabled>Validar y Generar JSON</button>
+  <div id="errors"></div>
+  <h2>JSON Resultante</h2>
+  <div id="jsonOutput"></div>
+  <a id="downloadLink" class="download-link" style="display:none;" download="tours.json">Descargar JSON</a>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const processBtn = document.getElementById('processBtn');
+    const errorsDiv = document.getElementById('errors');
+    const jsonOut = document.getElementById('jsonOutput');
+    const downloadLink = document.getElementById('downloadLink');
+    let rawData = [];
+
+    fileInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      Papa.parse(file, {
+        header: false,
+        skipEmptyLines: false,
+        complete: results => {
+          rawData = results.data;
+          errorsDiv.textContent = `Leídas ${rawData.length} filas.`;
+          processBtn.disabled = false;
+        }
+      });
+    });
+
+    processBtn.addEventListener('click', () => {
+      errorsDiv.textContent = '';
+      jsonOut.textContent = '';
+      downloadLink.style.display = 'none';
+      
+      const blocks = [
+        {start:20, end:32, expected:12, label:'Campos 21–32'},
+        {start:35, end:47, expected:12, label:'Campos 36–47'},
+        {start:48, end:51, expected:3,  label:'Campos 49–51'}
+      ];
+      const errs = [];
+      // Validar Nombre de la excursión
+      const excRow = rawData.findIndex(r => r[0] === 'Nombre de la excursión');
+      if (excRow < 0) errs.push('❌ No se encontró la etiqueta "Nombre de la excursión".');
+      // Validar bloques
+      blocks.forEach(b => {
+        const labels = rawData.slice(b.start, b.end).map(r=>r[0]).filter(c=>c && c.trim() !== '');
+        if (labels.length !== b.expected) {
+          errs.push(`❌ Bloque ${b.label}: esperado ${b.expected}, encontrado ${labels.length}`);
+        }
+      });
+
+      if (errs.length) {
+        errorsDiv.textContent = errs.join('\n');
+        return;
+      }
+
+      // Extraer tours
+      const tours = rawData[excRow].slice(1).filter(c=>c && c.trim() !== '');
+      // Campos
+      const fields1 = rawData.slice(20,32).map(r=>r[0]);
+      const fields2 = rawData.slice(35,47).map(r=>r[0]);
+      const fields3 = rawData.slice(48,51).map(r=>r[0]);
+
+      // Construir registros
+      const records = tours.map((tour, idx) => {
+        const col = idx + 1;
+        const rec = {Tour: tour};
+        fields1.forEach((f,i) => rec[f] = rawData[20 + i][col]);
+        fields2.forEach((f,i) => rec[f] = rawData[35 + i][col]);
+        fields3.forEach((f,i) => rec[f] = rawData[48 + i][col]);
+        return rec;
+      });
+
+      // Mostrar JSON
+      const jsonStr = JSON.stringify(records, null, 2);
+      jsonOut.textContent = jsonStr;
+
+      // Preparar descarga
+      const blob = new Blob([jsonStr], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      downloadLink.href = url;
+      downloadLink.style.display = 'inline-block';
+    });
+  </script>
+</body>
+</html>
